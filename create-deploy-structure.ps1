@@ -99,6 +99,20 @@ foreach ($relativeFile in $staticFiles) {
         $null = New-Item -Path $fullFilePath -ItemType File
     }
 }
+
+### CHART METADATA CONTENT
+$chartTemplatePath = Join-Path -Path $rootFolderPath -ChildPath "application/main-app/Chart.yaml"
+$chartTemplateContent = @"
+apiVersion: v2
+name: $ApplicationName
+description: Minimal Helm chart without helpers
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+"@
+
+
+
 ### CONFIGMAP TEMPLATE CONTENT
 $configMapTemplatePath = Join-Path -Path $rootFolderPath -ChildPath "application/main-app/templates/configmap.yaml"
 $configMapTemplateContent = @'
@@ -298,7 +312,7 @@ Set-Content -Path $deploymentTemplatePath -Value $deploymentTemplateContent -Enc
 Set-Content -Path $hpaTemplatePath -Value $hpaTemplateContent -Encoding UTF8
 Set-Content -Path $ingressTemplatePath -Value $ingressTemplateContent -Encoding UTF8
 Set-Content -Path $serviceTemplatePath -Value $serviceTemplateContent -Encoding UTF8
-
+Set-Content -Path $chartTemplatePath -Value $chartTemplateContent -Encoding UTF8
 
 
 
