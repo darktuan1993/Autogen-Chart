@@ -1,11 +1,4 @@
-param(
-    [Parameter(Mandatory = $false)]
-    [string]$ApplicationName
-)
-
-if (-not $ApplicationName) {
-    $ApplicationName = Read-Host -Prompt "Nhập tên ứng dụng"
-}
+$ApplicationName = Read-Host -Prompt "Nhập tên ứng dụng"
 
 if (-not $ApplicationName) {
     Write-Error "Tên ứng dụng không được để trống."
@@ -14,6 +7,26 @@ if (-not $ApplicationName) {
 
 $rootFolderName = "$ApplicationName-deploy"
 $rootFolderPath = Join-Path -Path (Get-Location) -ChildPath $rootFolderName
+
+$serviceNamesInput = Read-Host -Prompt "Nhập danh sách service (ngăn cách bởi dấu phẩy, để trống nếu không có)"
+$workerNamesInput = Read-Host -Prompt "Nhập danh sách worker (ngăn cách bởi dấu phẩy, để trống nếu không có)"
+
+function Get-NameList {
+    param (
+        [string]$Input
+    )
+
+    if (-not $Input) {
+        return @()
+    }
+
+    return $Input.Split(",") |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+}
+
+$serviceNames = Get-NameList -Input $serviceNamesInput
+$workerNames = Get-NameList -Input $workerNamesInput
 
 $directories = @(
     "app-argocd",
@@ -28,22 +41,15 @@ $directories = @(
     "application/other-app"
 )
 
-$files = @(
+$staticFiles = @(
     "README.md",
     "app-argocd/root-app.yaml",
-    "app-argocd/service/backend.yaml",
-    "app-argocd/service/xxxxx.yaml",
-    "app-argocd/worker/worker-xxxx.yaml",
-    "app-argocd/worker/worker-xx11.yaml",
     "application/main-app/Chart.yaml",
     "application/main-app/templates/configmap.yaml",
     "application/main-app/templates/deployment.yaml",
     "application/main-app/templates/hpa.yaml",
-    "application/main-app/templates/xxxx.yaml",
     "application/main-app/templates/ingress.yaml",
-    "application/main-app/templates/service.yaml",
-    "application/main-app/values/service/values-backend.yaml",
-    "application/main-app/values/worker/worker-xxxx.yaml"
+    "application/main-app/templates/service.yaml"
 )
 
 if (-not (Test-Path -Path $rootFolderPath)) {
@@ -57,10 +63,34 @@ foreach ($relativeDir in $directories) {
     }
 }
 
-foreach ($relativeFile in $files) {
+foreach ($relativeFile in $staticFiles) {
     $fullFilePath = Join-Path -Path $rootFolderPath -ChildPath $relativeFile
     if (-not (Test-Path -Path $fullFilePath)) {
         $null = New-Item -Path $fullFilePath -ItemType File
+    }
+}
+
+foreach ($serviceName in $serviceNames) {
+    $serviceFile = "app-argocd/service/$serviceName.yaml"
+    $serviceValuesFile = "application/main-app/values/service/values-$serviceName.yaml"
+
+    foreach ($relativeFile in @($serviceFile, $serviceValuesFile)) {
+        $fullFilePath = Join-Path -Path $rootFolderPath -ChildPath $relativeFile
+        if (-not (Test-Path -Path $fullFilePath)) {
+            $null = New-Item -Path $fullFilePath -ItemType File
+        }
+    }
+}
+
+foreach ($workerName in $workerNames) {
+    $workerFile = "app-argocd/worker/$workerName.yaml"
+    $workerValuesFile = "application/main-app/values/worker/values-$workerName.yaml"
+
+    foreach ($relativeFile in @($workerFile, $workerValuesFile)) {
+        $fullFilePath = Join-Path -Path $rootFolderPath -ChildPath $relativeFile
+        if (-not (Test-Path -Path $fullFilePath)) {
+            $null = New-Item -Path $fullFilePath -ItemType File
+        }
     }
 }
 
