@@ -1,39 +1,62 @@
-$ApplicationName = Read-Host -Prompt "Nhập tên ứng dụng"
+Clear-Host
+Write-Host "==========================================="
+Write-Host "++++ CREATE DEPLOY STRUCTURE TOOL +++++++++"
+Write-Host "-------------------------------------------"
+Write-Host "Author : Tuanbd7"
+Write-Host "Version: 1.0"
+Write-Host "==========================================="
+Write-Host ""
+
+$ApplicationName = Read-Host -Prompt "APPLICATION NAME"
 
 if (-not $ApplicationName) {
-    Write-Error "Tên ứng dụng không được để trống."
+    Write-Error "NON"
     exit 1
 }
 
 $rootFolderName = "$ApplicationName-deploy"
 
-# Determine the folder where the script is stored so that the generated
-# structure is always created relative to the script instead of the current
-# working directory. This avoids confusing situations where the user runs the
-# script from another location and the files are created elsewhere.
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
-
 $rootFolderPath = Join-Path -Path $scriptRoot -ChildPath $rootFolderName
 
-$serviceNamesInput = Read-Host -Prompt "Nhập danh sách service (ngăn cách bởi dấu phẩy, để trống nếu không có)"
-$workerNamesInput = Read-Host -Prompt "Nhập danh sách worker (ngăn cách bởi dấu phẩy, để trống nếu không có)"
+# Reference the variable so it's used (avoids "assigned but never used" warnings)
+Write-Output "Root folder path: $rootFolderPath"
+
+$serviceNamesInput = Read-Host -Prompt "Input service names (comma-separated, leave empty if none)"
+$workerNamesInput = Read-Host -Prompt "Input worker names (comma-separated, leave empty if none)"
 
 function Get-NameList {
     param (
-        [string]$Input
+        [string]$NameListInput
     )
 
-    if (-not $Input) {
+    if (-not $NameListInput) {
         return @()
     }
 
-    return $Input.Split(",") |
-        ForEach-Object { $_.Trim() } |
-        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    return $NameListInput.Split(",") |
+    ForEach-Object { $_.Trim() } |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 }
 
-$serviceNames = Get-NameList -Input $serviceNamesInput
-$workerNames = Get-NameList -Input $workerNamesInput
+$serviceNames = Get-NameList -NameListInput $serviceNamesInput
+$workerNames = Get-NameList -NameListInput $workerNamesInput
+
+# ✅ In ra đúng danh sách
+if ($serviceNames.Count -gt 0) {
+    Write-Output "SERVICE NAMES: $($serviceNames -join ', ')"
+}
+else {
+    Write-Output "SERVICE NAMES: (none)"
+}
+
+if ($workerNames.Count -gt 0) {
+    Write-Output "WORKER NAMES: $($workerNames -join ', ')"
+}
+else {
+    Write-Output "WORKER NAMES: (none)"
+}
+
 
 $directories = @(
     "app-argocd",
@@ -101,4 +124,4 @@ foreach ($workerName in $workerNames) {
     }
 }
 
-Write-Output "Đã tạo cấu trúc thư mục tại: $rootFolderPath"
+Write-Output "CHART TEMPLATE DONE! $rootFolderPath"
