@@ -100,6 +100,26 @@ foreach ($relativeFile in $staticFiles) {
     }
 }
 
+$configMapTemplatePath = Join-Path -Path $rootFolderPath -ChildPath "application/main-app/templates/configmap.yaml"
+$configMapTemplateContent = @'
+{{- if .Values.configmap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.serviceName }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.serviceName }}
+    app.kubernetes.io/instance: {{ .Values.serviceName }}
+data:
+{{- range $key, $value := .Values.configmap.data }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+{{- end }}
+'@
+
+Set-Content -Path $configMapTemplatePath -Value $configMapTemplateContent -Encoding UTF8
+
 foreach ($serviceName in $serviceNames) {
     $serviceFile = "app-argocd/service/$serviceName.yaml"
     $serviceValuesFile = "application/main-app/values/service/values-$serviceName.yaml"
