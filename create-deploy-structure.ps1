@@ -99,7 +99,7 @@ foreach ($relativeFile in $staticFiles) {
         $null = New-Item -Path $fullFilePath -ItemType File
     }
 }
-
+### CONFIGMAP TEMPLATE CONTENT
 $configMapTemplatePath = Join-Path -Path $rootFolderPath -ChildPath "application/main-app/templates/configmap.yaml"
 $configMapTemplateContent = @'
 {{- if .Values.configmap.enabled }}
@@ -117,8 +117,190 @@ data:
 {{- end }}
 {{- end }}
 '@
+### DEPLOYMENT TEMPLATE CONTENT
+$deploymentTemplatePath = Join-Path -Path $rootFolderPath -ChildPath "application/main-app/templates/deployment.yaml"
+$deploymentTemplateContent = @'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.serviceName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.serviceName }}
+    app.kubernetes.io/instance: {{ .Values.serviceName }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.serviceName }}
+      app.kubernetes.io/instance: {{ .Values.serviceName }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.serviceName }}
+        app.kubernetes.io/instance: {{ .Values.serviceName }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.serviceName }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.image.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.image.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: {{ .Values.service.name }}
+              containerPort: {{ .Values.service.portContainer }}
+              protocol: {{ .Values.service.protocol }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.serviceName }}-config
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+'@
+
+$hpaTemplatePath = Join-Path -Path $rootFolderPath -ChildPath "application/main-app/templates/hpa.yaml"
+### HPA TEMPLATE CONTENT
+$hpaTemplateContent = @'
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.serviceName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.serviceName }}
+    app.kubernetes.io/instance: {{ .Values.serviceName }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.serviceName }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+'@
+
+### INGRESS TEMPLATE CONTENT
+$ingressTemplatePath = Join-Path -Path $rootFolderPath -ChildPath "application/main-app/templates/ingress.yaml"
+$ingressTemplateContent = @'
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.serviceName }}
+  namespace: {{ .Values.namespace }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $.Values.serviceName }}
+                port:
+                  number: {{ (index $.Values.service.ports 0).port }}
+          {{- end }}
+    {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+{{- end }}
+'@
+
+### SERVICE TEMPLATE CONTENT
+$serviceTemplatePath = Join-Path -Path $rootFolderPath -ChildPath "application/main-app/templates/service.yaml"
+$serviceTemplateContent = @'
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.serviceName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.serviceName }}
+    app.kubernetes.io/instance: {{ .Values.serviceName }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    {{- range .Values.service.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ .protocol }}
+    {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ .Values.serviceName }}
+    app.kubernetes.io/instance: {{ .Values.serviceName }}
+
+'@
 
 Set-Content -Path $configMapTemplatePath -Value $configMapTemplateContent -Encoding UTF8
+Set-Content -Path $deploymentTemplatePath -Value $deploymentTemplateContent -Encoding UTF8
+Set-Content -Path $hpaTemplatePath -Value $hpaTemplateContent -Encoding UTF8
+Set-Content -Path $ingressTemplatePath -Value $ingressTemplateContent -Encoding UTF8
+Set-Content -Path $serviceTemplatePath -Value $serviceTemplateContent -Encoding UTF8
+
+
+
 
 foreach ($serviceName in $serviceNames) {
     $serviceFile = "app-argocd/service/$serviceName.yaml"
