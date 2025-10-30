@@ -6,7 +6,14 @@ if (-not $ApplicationName) {
 }
 
 $rootFolderName = "$ApplicationName-deploy"
-$rootFolderPath = Join-Path -Path (Get-Location) -ChildPath $rootFolderName
+
+# Determine the folder where the script is stored so that the generated
+# structure is always created relative to the script instead of the current
+# working directory. This avoids confusing situations where the user runs the
+# script from another location and the files are created elsewhere.
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+$rootFolderPath = Join-Path -Path $scriptRoot -ChildPath $rootFolderName
 
 $serviceNamesInput = Read-Host -Prompt "Nhập danh sách service (ngăn cách bởi dấu phẩy, để trống nếu không có)"
 $workerNamesInput = Read-Host -Prompt "Nhập danh sách worker (ngăn cách bởi dấu phẩy, để trống nếu không có)"
@@ -53,7 +60,7 @@ $staticFiles = @(
 )
 
 if (-not (Test-Path -Path $rootFolderPath)) {
-    New-Item -Path $rootFolderPath -ItemType Directory | Out-Null
+    New-Item -Path $rootFolderPath -ItemType Directory -Force | Out-Null
 }
 
 foreach ($relativeDir in $directories) {
